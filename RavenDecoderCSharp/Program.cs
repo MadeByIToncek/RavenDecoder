@@ -18,33 +18,36 @@ class Program {
     private const string FilePath = "C:\\Users\\matya\\Downloads\\video.hevc";
 
     static void Main(string[] args) {
-        using UdpClient ravenSocket = new(8889);
+        File.Create(FilePath).Close();
+        
+        using UdpClient ravenSocket = new();
+        ravenSocket.ExclusiveAddressUse = false;
         ravenSocket.Connect(IPEndPoint.Parse("192.168.2.1:9005"));
         
-        using UdpClient videoSocket = new(8887);
-        videoSocket.Connect(IPEndPoint.Parse("127.0.0.1:8888"));
-
+        using UdpClient videoSocket = new();
+        videoSocket.ExclusiveAddressUse = false;
+        videoSocket.Client.Bind(new IPEndPoint(IPAddress.Loopback, 8887));
+        videoSocket.Connect(IPAddress.Loopback, 8888);
 
         ravenSocket.Send(Handshake);
         Console.WriteLine("Handshake: Sent");
-
-        File.Create(FilePath).Close();
         
         List<byte> currentFrame = [];
 
         while (true) {
+            Console.WriteLine("-----------------------------------------------------------------");
+            
             IPEndPoint? ipep = null;
             byte[] receivedData = ravenSocket.Receive(ref ipep);
-            Console.WriteLine("-----------------------------------------------------------------");
-            int length = readShortAtOffset(receivedData, 0) & 0x7fff;
-            Console.WriteLine($"Packet: Length: {length}");
-            if (receivedData.Length != length) {
+            int packetLength = readShortAtOffset(receivedData, 0) & 0x7fff;
+            Console.WriteLine($"Packet: Length: {packetLength}");
+            if (receivedData.Length != packetLength) {
                 Console.WriteLine(
-                    $"[WARN] packet size mismatch, continuing (debug only), (raven: {length})/(packet:{receivedData.Length})");
+                    $"[WARN] packet size mismatch, continuing (debug only), (raven: {packetLength})/(packet:{receivedData.Length})");
             }
 
-            short sequenceNumber = readShortAtOffset(receivedData, 4);
-            Console.WriteLine($"Packet: Sequence Number: {sequenceNumber}");
+            ushort sequenceNumber = readShortAtOffset(receivedData, 4);
+            Console.WriteLine($"Packet: Sequence Number: {sequenceNumber >> 3}");
 
             byte packetType = receivedData[6];
             Console.WriteLine($"Packet: Type: {packetType}");
@@ -67,13 +70,15 @@ class Program {
                     
                     Console.WriteLine($"Frame: Received #{frameNumber} ({partNumber + 1}/{totalParts})");
 
-                    byte[] h265 = new byte[length - 0x14];
-                    Buffer.BlockCopy(receivedData, 0x14, h265, 0, length - 0x14);
+                    byte[] h265 = new byte[packetLength - 0x14];
+                    Buffer.BlockCopy(receivedData, 0x14, h265, 0, packetLength - 0x14);
                     
                     currentFrame.AddRange(h265);
                     
                     // When the last part of a frame is received
                     if (partNumber == totalParts - 1) {
+                        Console.WriteLine($"Frame: Finished #{frameNumber} ({currentFrame.Count} bytes)");
+                        
                         byte[] keepalive = (byte[])KeepAlive.Clone();
                         keepalive[0x08] = (byte)(recvWindowStart & 0xff);
                         keepalive[0x09] = (byte)(recvWindowStart >> 8);
@@ -101,7 +106,7 @@ class Program {
         }
     }
 
-    private static short readShortAtOffset(byte[] bytes, int i) {
-        return (short)(bytes[i] | (bytes[i + 1] << 8));
+    private static ushort readShortAtOffset(byte[] bytes, int i, bool inverted = false) {
+        return !inverted ? (ushort)(bytes[i] | (bytes[i + 1] << 8)) : (ushort)(bytes[i + 1] | bytes[i] << 8);
     }
 }
