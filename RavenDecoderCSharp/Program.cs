@@ -60,7 +60,7 @@ class Program {
 					
 					int recv_window_start = seq_no;
 					int recv_window_end = seq_no;
-
+					Stream s = File.Open("./video.hevc", FileMode.Append);
 					if (part_num == n_parts - 1) {
 						byte[] keepalive = (byte[])KeepAlive.Clone();
 						keepalive[0x08] = (byte) (recv_window_start & 0xff);
@@ -77,7 +77,8 @@ class Program {
 						Buf.AddRange(h265);
 					}
 
-					
+					s.Write(h265);
+					s.Close();
 					break;	
 				default:
 					Console.WriteLine($"Unknown packet type {packetType}");
