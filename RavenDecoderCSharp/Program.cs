@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System.Diagnostics;
+using System.Net;
 using System.Net.Sockets;
 
 namespace RavenDecoderCSharp;
@@ -33,6 +34,15 @@ class Program {
         Console.WriteLine("Handshake: Sent");
         
         List<byte> currentFrame = [];
+
+        Process ffplay = new Process();
+        ffplay.StartInfo.FileName = "ffplay.exe";
+        ffplay.StartInfo.Arguments = "-i -";
+        ffplay.StartInfo.UseShellExecute = false;
+        ffplay.StartInfo.RedirectStandardInput = true;
+        ffplay.StartInfo.RedirectStandardOutput = true;
+
+        ffplay.Start();
 
         while (true) {
             Console.WriteLine("-----------------------------------------------------------------");
@@ -97,6 +107,9 @@ class Program {
                         // Append it to the file
                         using Stream s = File.Open(FilePath, FileMode.Append);
                         s.Write(completeFrame);
+
+                        using var writer = new BinaryWriter(ffplay.StandardInput.BaseStream) ;
+                        writer.Write(completeFrame);
                     }
                     break;
                 default:
