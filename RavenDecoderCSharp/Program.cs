@@ -70,7 +70,9 @@ class Program {
 
 						ravenSocket.Send(keepalive,IPEndPoint.Parse("192.168.2.1:9005"));
 
-						videoSocket.Send(Buf.ToArray(), Buf.Count, IPEndPoint.Parse("127.0.0.1:8888"));
+						byte[] framebuf = new byte[Buf.Count];
+						Buf.CopyTo(framebuf);
+						videoSocket.Send(framebuf, framebuf.Length, IPEndPoint.Parse("127.0.0.1:8888"));
 						Buf.Clear();
 					}
 					else {
